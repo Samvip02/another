@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Transcription</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f8ff;
+            font-family: Arial, sans-serif;
+        }
+        #record-button {
+            padding: 20px 40px;
+            font-size: 24px;
+            background-color: #4caf50;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+        #status {
+            margin-top: 20px;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <button id="record-button">Start Recording</button>
+    <div id="status"></div>
+
+    <script>
+        const recordButton = document.getElementById('record-button');
+        const statusDiv = document.getElementById('status');
+        let mediaRecorder;
+        let audioChunks = [];
+
+        recordButton.addEventListener('click', () => {
+            if (recordButton.innerText === 'Start Recording') {
+                startRecording();
+            } else {
+                stopRecording();
+            }
+        });
+
+        function startRecording() {
+            statusDiv.innerText = "Recording started...";
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    mediaRecorder = new MediaRecorder(stream);
+                    mediaRecorder.ondataavailable = event => {
+                        audioChunks.push(event.data);
+                    };
+                    mediaRecorder.onstop = sendRecording;
+                    mediaRecorder.start();
+                    recordButton.innerText = 'Stop Recording';
+                })
+                .catch(error => {
+                    statusDiv.innerText = "Microphone access denied.";
+                    console.error('Error accessing microphone:', error);
+                });
+        }
+
+        function stopRecording() {
+            statusDiv.innerText = "Recording stopped. Processing...";
+            mediaRecorder.stop();
+            recordButton.innerText = 'Start Recording';
+        }
+
+        function sendRecording() {
+            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+            audioChunks = [];
+
+            const formData = new FormData();
+            formData.append('file', audioBlob, 'recording.wav');
+
+            statusDiv.innerText = "Uploading audio for transcription...";
+
+            fetch('/upload-audio', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    statusDiv.innerText = "Error: " + data.error;
+                } else {
+                    statusDiv.innerText = "Transcription: " + data.transcription;
+                }
+            })
+            .catch(error => {
+                statusDiv.innerText = "Failed to transcribe the audio.";
+                console.error('Error:', error);
+            });
+        }
+    </script>
+</body>
+</html>
